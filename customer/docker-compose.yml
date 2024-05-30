@@ -1,0 +1,51 @@
+services:
+
+  customerdb:
+    container_name: customerdb
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE: customerdb
+    extends:
+      file: common-config.yml
+      service: microservice-db-config
+
+  configserver:
+    image: "jmaee/configserver:t1"
+    container_name: configserver
+    ports:
+      - "8071:8071"
+    healthcheck:
+      test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    extends:
+      file: common-config.yml
+      service: microservice-base-config
+
+  customer:
+    image: "jmaee/customer:t1"
+    container_name: customer-ms
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_APPLICATION_NAME: "customer"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://customerdb:3306/customerdb"
+      SPRING_CONFIG_IMPORT: configserver:http://configserver:8071/
+      SPRING_PROFILE_ACTIVE: default
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      customerdb:
+        condition: service_healthy
+      configserver:
+        condition: service_healthy
+    extends:
+      file: common-config.yml
+      service:  microservice-base-config
+
+networks:
+  testnetwork:
+    driver: "bridge"
